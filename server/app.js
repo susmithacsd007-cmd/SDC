@@ -23,8 +23,10 @@ app.get('/api/student-identity', asyncRoute(async (req, res) => {
 
 app.get('/api/registrations', asyncRoute(async (req, res) => {
   const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId.trim() : '';
+  const rollNumber = typeof req.query.rollNumber === 'string' ? req.query.rollNumber.trim() : '';
   if (!validDeviceId(deviceId)) return res.status(400).json({ error: 'A valid deviceId is required (1–100 characters).' });
-  return res.json(await listRegistrations(deviceId));
+  if (rollNumber.length > 40) return res.status(400).json({ error: 'rollNumber must be 40 characters or fewer.' });
+  return res.json(await listRegistrations(deviceId, rollNumber));
 }));
 
 app.post('/api/registrations', asyncRoute(async (req, res) => {
@@ -33,12 +35,15 @@ app.post('/api/registrations', asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'A JSON object is required.' });
   }
 
-  const required = ['deviceId', 'eventId', 'eventTitle', 'eventDate', 'eventVenue', 'name', 'mobile', 'className', 'year', 'branch'];
+  const bodySection = typeof body.section === 'string' ? body.section : body.className;
+  const required = ['deviceId', 'eventId', 'eventTitle', 'eventDate', 'eventVenue', 'name', 'mobile', 'rollNumber', 'year', 'branch'];
   const missing = required.filter(key => typeof body[key] !== 'string' || !body[key].trim());
+  if (typeof bodySection !== 'string' || !bodySection.trim()) missing.push('section');
   if (missing.length) return res.status(400).json({ error: `Missing or invalid required fields: ${missing.join(', ')}.` });
   if (!validDeviceId(body.deviceId.trim())) return res.status(400).json({ error: 'A valid deviceId is required (1–100 characters).' });
 
-  const limits = { eventId: 80, eventTitle: 120, eventVenue: 120, name: 100, className: 40, year: 20, branch: 40 };
+  const limits = { eventId: 80, eventTitle: 120, eventVenue: 120, name: 100, rollNumber: 40, year: 20, branch: 40 };
+  if (bodySection.trim().length > 40) return res.status(400).json({ error: 'section must be 40 characters or fewer.' });
   for (const [field, max] of Object.entries(limits)) {
     if (body[field].trim().length > max) return res.status(400).json({ error: `${field} must be ${max} characters or fewer.` });
   }

@@ -57,6 +57,12 @@ const EVENTS = [
 ];
 
 const categories = ["All events", "Technical", "Workshop", "Cultural", "Sports"];
+const clubs = [
+  { name: "Coding Club", description: "Build, hack, and learn together.", className: "club-violet", icon: Code2, matches: event => event.host === "Coding Club" },
+  { name: "Cultural Club", description: "Make some noise. Make memories.", className: "club-pink", icon: Music2, matches: event => event.category === "Cultural" },
+  { name: "Sports Club", description: "Play hard. Grow together.", className: "club-blue", icon: Trophy, matches: event => event.host === "Sports Club" },
+  { name: "Innovation Club", description: "Turn ideas into impact.", className: "club-orange", icon: GraduationCap, matches: event => event.host === "Innovation Club" }
+];
 const money = (fee) => fee === 0 ? "Free" : `₹${fee}`;
 const dateLabel = (date) => new Date(date).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 const timeLabel = (date) => new Date(date).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
@@ -99,26 +105,12 @@ function Countdown({ target }) {
   )}</div>;
 }
 
-function RegistrationModal({ event, onClose, onRegistered, registrations }) {
-  const [ids, setIds] = useState(null);
+function RegistrationModal({ event, onClose, onRegistered, registrations, studentId }) {
   const [deviceId] = useState(() => getDeviceId());
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", mobile: "", className: "", year: "2nd Year", branch: "CSE" });
+  const [form, setForm] = useState({ name: "", rollNumber: studentId, mobile: "", section: "", year: "2nd Year", branch: "CSE" });
   const [errors, setErrors] = useState({});
   const [done, setDone] = useState(null);
-  const [identityLoading, setIdentityLoading] = useState(true);
-
-  useEffect(() => {
-    if (!event) return;
-    let active = true;
-    setIdentityLoading(true);
-    fetch(`/api/student-identity?deviceId=${encodeURIComponent(deviceId)}`)
-      .then(readApiResponse)
-      .then(value => { if (active) { setIds(value); setErrors({}); } })
-      .catch(err => { if (active) setErrors(prev => ({ ...prev, form: `Could not load demo IDs: ${cleanErrorMessage(err)}. Check that the backend is running.` })); })
-      .finally(() => { if (active) setIdentityLoading(false); });
-    return () => { active = false; };
-  }, [event, deviceId]);
 
   if (!event) return null;
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
@@ -126,29 +118,34 @@ function RegistrationModal({ event, onClose, onRegistered, registrations }) {
     e.preventDefault();
     const nextErrors = {};
     if (form.name.trim().length < 2) nextErrors.name = "Please enter your full name.";
+    if (!form.rollNumber.trim()) nextErrors.rollNumber = "Please enter your student roll number.";
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) nextErrors.mobile = "Enter a valid 10-digit Indian mobile number.";
-    if (!form.className.trim()) nextErrors.className = "Please enter your class/section.";
+    if (!form.section.trim()) nextErrors.section = "Please enter your section.";
     if (!form.year) nextErrors.year = "Choose your year.";
     if (!form.branch) nextErrors.branch = "Choose your branch.";
-    const duplicate = ids && registrations.some(r => r.eventId === event.id && r.rollNumber === ids.rollNumber);
+    const duplicate = registrations.some(r => r.eventId === event.id && r.rollNumber?.toUpperCase() === form.rollNumber.trim().toUpperCase());
     if (duplicate) nextErrors.form = "This student is already registered for this event.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
-    if (!ids) { setErrors({ form: "Student ID is still loading. Please try again." }); return; }
 
     setSubmitting(true);
     try {
       const response = await fetch("/api/registrations", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId, eventId: event.id, eventTitle: event.title, eventDate: event.date,
-          eventVenue: event.venue, name: form.name.trim(), mobile: form.mobile.trim(),
-          className: form.className.trim(), year: form.year, branch: form.branch, fee: event.fee })
+          eventVenue: event.venue, name: form.name.trim(), rollNumber: form.rollNumber.trim().toUpperCase(),
+          mobile: form.mobile.trim(), section: form.section.trim(), year: form.year, branch: form.branch, fee: event.fee })
       });
       const result = await readApiResponse(response);
       onRegistered(result);
       setDone(result);
     } catch (err) {
-      setErrors(prev => ({ ...prev, form: `Registration was not saved: ${cleanErrorMessage(err)}` }));
+      const message = err instanceof TypeError
+        ? "Cannot reach the backend. Start it with npm run dev:full, then retry."
+        : /^Request failed \(5\d\d\)/.test(err.message || "")
+          ? "The backend returned a server error. Check its terminal for details, then retry."
+        : cleanErrorMessage(err);
+      setErrors(prev => ({ ...prev, form: `Registration was not saved: ${message}` }));
     } finally { setSubmitting(false); }
   };
 
@@ -159,12 +156,12 @@ function RegistrationModal({ event, onClose, onRegistered, registrations }) {
         <div className="success-icon"><CheckCircle2 size={34}/></div>
         <p className="eyebrow">REGISTRATION SAVED</p>
         <h2>You're on the list, {done.name.split(" ")[0]}!</h2>
-        <p className="muted">Your demo registration has been saved on this browser.</p>
+        <p className="muted">Your registration was saved by the CampusConnect server.</p>
         <div className="receipt">
           <div><span>Event</span><strong>{done.eventTitle}</strong></div>
           <div><span>Registration ID</span><strong>{done.registrationId}</strong></div>
           <div><span>Roll number</span><strong>{done.rollNumber}</strong></div>
-          <div><span>College ID</span><strong>{done.collegeId}</strong></div>
+          <div><span>Section</span><strong>{done.section || done.className}</strong></div>
           <div><span>Payment</span><strong>{done.paymentStatus}</strong></div>
         </div>
         {event.fee > 0 && <p className="notice">This is a demo only. No payment was collected. Add a verified payment provider before accepting real fees.</p>}
@@ -182,27 +179,15 @@ function RegistrationModal({ event, onClose, onRegistered, registrations }) {
               <input value={form.name} onChange={e => update("name", e.target.value)} placeholder="Enter your full name" autoFocus />
               {errors.name && <small className="error">{errors.name}</small>}
             </label>
-            <label className="field">Demo roll number <span className="auto-tag">AUTO</span>
-              <input value={ids?.rollNumber || (identityLoading ? "Loading…" : "Unavailable")} readOnly className="readonly-input" />
+            <label className="field field-wide">Student roll number <b>*</b>
+              <input value={form.rollNumber} onChange={e => update("rollNumber", e.target.value)} placeholder="Enter your roll number" maxLength={40} autoComplete="username" />
+              {errors.rollNumber && <small className="error">{errors.rollNumber}</small>}
             </label>
-            <label className="field">Demo college ID <span className="auto-tag">AUTO</span>
-              <input value={ids?.collegeId || (identityLoading ? "Loading…" : "Unavailable")} readOnly className="readonly-input" />
-            </label>
-            <label className="field field-wide">Mobile number <b>*</b>
+            <label className="field">Mobile number <b>*</b>
               <input inputMode="numeric" maxLength={10} value={form.mobile} onChange={e => update("mobile", e.target.value.replace(/\D/g, ""))} placeholder="10-digit mobile number" />
               {errors.mobile && <small className="error">{errors.mobile}</small>}
             </label>
-            <label className="field">Class / Section <b>*</b>
-              <input value={form.className} onChange={e => update("className", e.target.value)} placeholder="e.g. CSE-A" />
-              {errors.className && <small className="error">{errors.className}</small>}
-            </label>
-            <label className="field">Year <b>*</b>
-              <select value={form.year} onChange={e => update("year", e.target.value)}>
-                <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
-              </select>
-              {errors.year && <small className="error">{errors.year}</small>}
-            </label>
-            <label className="field field-wide">Branch <b>*</b>
+            <label className="field">Branch <b>*</b>
               <select value={form.branch} onChange={e => update("branch", e.target.value)}>
                 <option value="CSE">CSE</option><option value="CSE (AI & ML)">CSE (AI &amp; ML)</option>
                 <option value="CSE (Data Science)">CSE (Data Science)</option><option value="IT">IT</option>
@@ -210,16 +195,58 @@ function RegistrationModal({ event, onClose, onRegistered, registrations }) {
               </select>
               {errors.branch && <small className="error">{errors.branch}</small>}
             </label>
+            <label className="field">Year <b>*</b>
+              <select value={form.year} onChange={e => update("year", e.target.value)}>
+                <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
+              </select>
+              {errors.year && <small className="error">{errors.year}</small>}
+            </label>
+            <label className="field">Section <b>*</b>
+              <input value={form.section} onChange={e => update("section", e.target.value)} placeholder="e.g. A" maxLength={30} />
+              {errors.section && <small className="error">{errors.section}</small>}
+            </label>
           </div>
           {errors.form && <p className="error">{errors.form}</p>}
           <div className="payment-summary"><span>Registration fee</span><strong>{money(event.fee)}</strong></div>
           {event.fee > 0 && <p className="notice">Demo mode: paid-event registration is recorded as unpaid. No QR payment is collected.</p>}
-          <button className="button button-primary button-full" type="submit" disabled={submitting || identityLoading || !ids}>{submitting ? "Saving registration…" : "Confirm registration"} <ArrowRight size={17}/></button>
-          <p className="form-footnote">Fields marked * are required. IDs are demo identifiers assigned to this browser; they are not official or verified college IDs.</p>
+          <button className="button button-primary button-full" type="submit" disabled={submitting}>{submitting ? "Saving registration…" : "Confirm registration"} <ArrowRight size={17}/></button>
+          <p className="form-footnote">Fields marked * are required. Student IDs are entered by the user and are not verified against college records.</p>
         </form>
       </>}
     </section>
   </div>;
+}
+
+function StudentLogin({ onLogin }) {
+  const [studentId, setStudentId] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = (event) => {
+    event.preventDefault();
+    const id = studentId.trim();
+    if (id.length < 2 || id.length > 40) {
+      setError("Enter a student ID between 2 and 40 characters.");
+      return;
+    }
+    onLogin(id);
+  };
+
+  return <main className="student-login-page">
+    <section className="student-login-card">
+      <span className="brand-mark"><CalendarDays size={22}/></span>
+      <p className="eyebrow">STUDENT ENTRY</p>
+      <h1>Welcome to CampusConnect</h1>
+      <p className="section-subtitle">Enter your student ID or roll number to explore campus events.</p>
+      <form onSubmit={submit}>
+        <label className="field">Student ID / Roll number <b>*</b>
+          <input autoFocus value={studentId} onChange={event => setStudentId(event.target.value)} placeholder="Enter your ID" maxLength={40} autoComplete="username" />
+        </label>
+        {error && <p className="error" role="alert">{error}</p>}
+        <button className="button button-primary button-full" type="submit">Continue <ArrowRight size={17}/></button>
+      </form>
+      <p className="login-disclaimer">Demo entry only. This project does not verify IDs with college records and is not secure authentication.</p>
+    </section>
+  </main>;
 }
 
 function EventCard({ event, favorite, onFavorite, onDetails, onRegister }) {
@@ -269,6 +296,9 @@ function DetailsModal({ event, onClose, onRegister, favorite, onFavorite }) {
 }
 
 export default function App() {
+  const [studentId, setStudentId] = useState(() => {
+    try { return localStorage.getItem("cc_student_id") || ""; } catch { return ""; }
+  });
   const [activeCategory, setActiveCategory] = useState("All events");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("soonest");
@@ -283,9 +313,19 @@ export default function App() {
   const [deviceId] = useState(() => getDeviceId());
   const [view, setView] = useState("explore");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [activeClub, setActiveClub] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [registerEvent, setRegisterEvent] = useState(null);
   const [mobileNav, setMobileNav] = useState(false);
+  const login = (id) => {
+    const normalized = id.trim().toUpperCase();
+    try { localStorage.setItem("cc_student_id", normalized); } catch { /* Keep this page session usable. */ }
+    setStudentId(normalized);
+  };
+  const logout = () => {
+    try { localStorage.removeItem("cc_student_id"); } catch { /* Continue with in-memory logout. */ }
+    setStudentId("");
+  };
 
   useEffect(() => {
     try { localStorage.setItem("cc_favorites", JSON.stringify(favorites)); } catch { /* Favorites remain available for this page session. */ }
@@ -294,7 +334,7 @@ export default function App() {
     let active = true;
     setRegistrationsLoading(true);
     setRegistrationsError("");
-    fetch(`/api/registrations?deviceId=${encodeURIComponent(deviceId)}`)
+    fetch(`/api/registrations?deviceId=${encodeURIComponent(deviceId)}&rollNumber=${encodeURIComponent(studentId)}`)
       .then(readApiResponse)
       .then(data => {
         if (!Array.isArray(data)) throw new Error("The server returned an invalid registrations list.");
@@ -303,7 +343,7 @@ export default function App() {
       .catch(err => { if (active) setRegistrationsError(`Could not load your events: ${cleanErrorMessage(err)}`); })
       .finally(() => { if (active) setRegistrationsLoading(false); });
     return () => { active = false; };
-  }, [deviceId, registrationRefresh]);
+  }, [deviceId, registrationRefresh, studentId]);
 
   const filteredEvents = useMemo(() => {
     let list = EVENTS.filter(e => {
@@ -311,14 +351,16 @@ export default function App() {
       const query = search.trim().toLowerCase();
       const matchesSearch = !query || [e.title, e.category, e.venue, e.host, e.description].some(s => s.toLowerCase().includes(query));
       const matchesFavorite = !showFavoritesOnly || favorites.includes(e.id);
-      const matchesRegistered = view !== "my-events" || registrations.some(r => r.eventId === e.id);
-      return matchesCategory && matchesSearch && matchesFavorite && matchesRegistered;
+      const matchesRegistered = view !== "my-events" || registrations.some(r => r.eventId === e.id && r.rollNumber?.toUpperCase() === studentId);
+      const club = clubs.find(item => item.name === activeClub);
+      const matchesClub = !club || club.matches(e);
+      return matchesCategory && matchesSearch && matchesFavorite && matchesRegistered && matchesClub;
     });
     if (sort === "soonest") list.sort((a, b) => new Date(a.date) - new Date(b.date));
     if (sort === "latest") list.sort((a, b) => new Date(b.date) - new Date(a.date));
     if (sort === "fee-low") list.sort((a, b) => a.fee - b.fee);
     return list;
-  }, [activeCategory, search, sort, showFavoritesOnly, favorites, view, registrations]);
+  }, [activeCategory, search, sort, showFavoritesOnly, favorites, view, registrations, activeClub, studentId]);
 
   const toggleFavorite = (id) => setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
   const saveRegistration = (registration) => setRegistrations(prev => [registration, ...prev.filter(r => r.registrationId !== registration.registrationId)]);
@@ -327,22 +369,35 @@ export default function App() {
   const featured = EVENTS[0];
 
   const goToEvents = () => {
-    setView("explore"); setShowFavoritesOnly(false); setMobileNav(false);
+    setView("explore"); setShowFavoritesOnly(false); setActiveClub(null); setMobileNav(false);
     document.getElementById("events")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const openClubEvents = (clubName) => {
+    setView("explore");
+    setShowFavoritesOnly(false);
+    setActiveCategory("All events");
+    setSearch("");
+    setActiveClub(clubName);
+    setMobileNav(false);
+    document.getElementById("events")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  if (!studentId) return <StudentLogin onLogin={login} />;
+  const studentRegistrations = registrations.filter(r => r.rollNumber?.toUpperCase() === studentId);
   return <div className="app-shell">
     <header className="site-header">
       <div className="header-inner">
-        <button className="brand" onClick={() => { setView("explore"); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label="CampusConnect home">
+        <button className="brand" onClick={() => { setView("explore"); setShowFavoritesOnly(false); setActiveClub(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-label="CampusConnect home">
           <span className="brand-mark"><CalendarDays size={22}/></span><span>Campus<span className="brand-accent">Connect</span><small>YOUR CAMPUS, YOUR COMMUNITY</small></span>
         </button>
         <button className="mobile-menu icon-button" onClick={() => setMobileNav(v => !v)} aria-label="Toggle menu"><Menu/></button>
         <nav className={mobileNav ? "main-nav nav-open" : "main-nav"}>
-          <button className={view === "explore" && !showFavoritesOnly ? "nav-link active" : "nav-link"} onClick={() => { setView("explore"); setShowFavoritesOnly(false); setMobileNav(false); }}>Explore events</button>
-          <button className={showFavoritesOnly ? "nav-link active" : "nav-link"} onClick={() => { setView("explore"); setShowFavoritesOnly(true); setMobileNav(false); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}>Favorites <span className="nav-count">{favorites.length}</span></button>
-          <button className={view === "my-events" ? "nav-link active" : "nav-link"} onClick={() => { setView("my-events"); setShowFavoritesOnly(false); setMobileNav(false); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}>My events <span className="nav-count">{registrations.length}</span></button>
+          <button className={view === "explore" && !showFavoritesOnly && !activeClub ? "nav-link active" : "nav-link"} onClick={() => { setView("explore"); setShowFavoritesOnly(false); setActiveClub(null); setMobileNav(false); }}>Explore events</button>
+          <button className={showFavoritesOnly ? "nav-link active" : "nav-link"} onClick={() => { setView("explore"); setShowFavoritesOnly(true); setActiveClub(null); setMobileNav(false); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}>Favorites <span className="nav-count">{favorites.length}</span></button>
+          <button className={view === "my-events" ? "nav-link active" : "nav-link"} onClick={() => { setView("my-events"); setShowFavoritesOnly(false); setActiveClub(null); setMobileNav(false); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}>My events <span className="nav-count">{studentRegistrations.length}</span></button>
           <button className="button button-primary nav-cta" onClick={goToEvents}>Find an event <ArrowRight size={16}/></button>
+          <button className="nav-link" onClick={logout}>Log out</button>
         </nav>
       </div>
     </header>
@@ -354,7 +409,7 @@ export default function App() {
           <div className="hero-pill"><Sparkles size={14}/> MAKE THE MOST OF CAMPUS LIFE</div>
           <h1>There's more to<br/>college than <span>classrooms.</span></h1>
           <p className="hero-copy">Discover workshops, hackathons, cultural fests and the people who make campus unforgettable.</p>
-          <div className="hero-actions"><button className="button button-light" onClick={goToEvents}>Explore events <ArrowRight size={17}/></button><button className="hero-secondary" onClick={() => { setView("explore"); setShowFavoritesOnly(true); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}><Heart size={16}/> Your saved events</button></div>
+          <div className="hero-actions"><button className="button button-light" onClick={goToEvents}>Explore events <ArrowRight size={17}/></button><button className="hero-secondary" onClick={() => { setView("explore"); setShowFavoritesOnly(true); setActiveClub(null); document.getElementById("events")?.scrollIntoView({ behavior: "smooth" }); }}><Heart size={16}/> Your saved events</button></div>
           <div className="hero-stats"><div><strong>06</strong><span>Upcoming events</span></div><i></i><div><strong>04</strong><span>Categories</span></div><i></i><div><strong>01</strong><span>Campus community</span></div></div>
         </div>
         <div className="hero-art">
@@ -374,21 +429,21 @@ export default function App() {
 
       <section className="events-section section-wrap" id="events">
         <div className="section-heading">
-          <div><p className="eyebrow">{view === "my-events" ? "YOUR CAMPUS CALENDAR" : showFavoritesOnly ? "YOUR SHORTLIST" : "WHAT'S HAPPENING ON CAMPUS"}</p>
-            <h2>{view === "my-events" ? "My registered events" : showFavoritesOnly ? "Your saved events" : "Find your next thing."}</h2>
-            <p className="section-subtitle">{view === "my-events" ? "All the events you've registered for, in one place." : showFavoritesOnly ? "The events you've saved for later." : "From big ideas to big nights — there's something for everyone."}</p>
+          <div><p className="eyebrow">{view === "my-events" ? "YOUR CAMPUS CALENDAR" : showFavoritesOnly ? "YOUR SHORTLIST" : activeClub ? "CLUB EVENTS" : "WHAT'S HAPPENING ON CAMPUS"}</p>
+            <h2>{view === "my-events" ? "My registered events" : showFavoritesOnly ? "Your saved events" : activeClub ? `${activeClub} events` : "Find your next thing."}</h2>
+            <p className="section-subtitle">{view === "my-events" ? "All the events you've registered for, in one place." : showFavoritesOnly ? "The events you've saved for later." : activeClub ? `Upcoming events for ${activeClub}.` : "From big ideas to big nights — there's something for everyone."}</p>
           </div>
           {view !== "my-events" && <div className="sort-control"><SlidersHorizontal size={16}/><select aria-label="Sort events" value={sort} onChange={e => setSort(e.target.value)}><option value="soonest">Date: soonest</option><option value="latest">Date: latest</option><option value="fee-low">Fee: lowest</option></select><ChevronDown size={14}/></div>}
         </div>
         <div className="event-tools">
           <label className="search-box"><Search size={19}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search events, venues, categories..." /><kbd>⌘ K</kbd></label>
-          {view !== "my-events" && <div className="category-list">{categories.map(cat => <button key={cat} className={`category-chip ${activeCategory === cat ? "selected" : ""}`} onClick={() => setActiveCategory(cat)}>{cat}</button>)}</div>}
+          {view !== "my-events" && <div className="category-list">{categories.map(cat => <button key={cat} className={`category-chip ${activeCategory === cat ? "selected" : ""}`} onClick={() => { setActiveCategory(cat); setActiveClub(null); }}>{cat}</button>)}</div>}
         </div>
         {view === "my-events" && registrationsLoading && <p className="section-subtitle" role="status">Loading your registrations…</p>}
         {view === "my-events" && registrationsError && <div className="empty-state" role="alert"><h3>Could not connect to your registrations</h3><p>{registrationsError}. Check that the backend is running, then retry.</p><button className="button button-primary" onClick={() => setRegistrationRefresh(value => value + 1)}>Retry</button></div>}
-        <div className="results-line"><span>{filteredEvents.length} {filteredEvents.length === 1 ? "event" : "events"} found</span>{(search || activeCategory !== "All events" || showFavoritesOnly) && <button onClick={() => { setSearch(""); setActiveCategory("All events"); setShowFavoritesOnly(false); }}>Clear filters <X size={13}/></button>}</div>
+        <div className="results-line"><span>{filteredEvents.length} {filteredEvents.length === 1 ? "event" : "events"} found</span>{(search || activeCategory !== "All events" || showFavoritesOnly || activeClub) && <button onClick={() => { setSearch(""); setActiveCategory("All events"); setShowFavoritesOnly(false); setActiveClub(null); }}>Clear filters <X size={13}/></button>}</div>
         {view === "my-events" && (registrationsLoading || registrationsError) ? null : filteredEvents.length ? <div className="events-grid">{filteredEvents.map(event => <EventCard key={event.id} event={event} favorite={favorites.includes(event.id)} onFavorite={toggleFavorite} onDetails={setSelectedEvent} onRegister={openRegister}/>)}</div> :
-          <div className="empty-state"><span><CalendarDays size={26}/></span><h3>No events found</h3><p>{view === "my-events" ? "Register for an event and it will appear here." : "Try another search or clear your filters."}</p><button className="button button-primary" onClick={() => { setView("explore"); setSearch(""); setActiveCategory("All events"); setShowFavoritesOnly(false); }}>Explore all events</button></div>}
+          <div className="empty-state"><span><CalendarDays size={26}/></span><h3>No events found</h3><p>{view === "my-events" ? "Register for an event and it will appear here." : activeClub ? `There are no upcoming events listed for ${activeClub} yet.` : "Try another search or clear your filters."}</p><button className="button button-primary" onClick={() => { setView("explore"); setSearch(""); setActiveCategory("All events"); setShowFavoritesOnly(false); setActiveClub(null); }}>Explore all events</button></div>}
       </section>
 
       <section className="countdown-section">
@@ -399,10 +454,12 @@ export default function App() {
       <section className="clubs-section section-wrap">
         <div className="section-heading club-heading"><div><p className="eyebrow">FIND YOUR COMMUNITY</p><h2>There's a club for that.</h2><p className="section-subtitle">Meet people who love what you love.</p></div></div>
         <div className="clubs-grid">
-          <div className="club-card club-violet"><span><Code2 size={23}/></span><div><h3>Coding Club</h3><p>Build, hack, and learn together.</p></div><b>Explore ↗</b></div>
-          <div className="club-card club-pink"><span><Music2 size={23}/></span><div><h3>Cultural Club</h3><p>Make some noise. Make memories.</p></div><b>Explore ↗</b></div>
-          <div className="club-card club-blue"><span><Trophy size={23}/></span><div><h3>Sports Club</h3><p>Play hard. Grow together.</p></div><b>Explore ↗</b></div>
-          <div className="club-card club-orange"><span><GraduationCap size={23}/></span><div><h3>Innovation Club</h3><p>Turn ideas into impact.</p></div><b>Explore ↗</b></div>
+          {clubs.map(club => {
+            const Icon = club.icon;
+            return <button key={club.name} type="button" className={`club-card ${club.className}`} onClick={() => openClubEvents(club.name)} aria-label={`Explore ${club.name} events`} aria-pressed={activeClub === club.name}>
+              <span><Icon size={23}/></span><div><h3>{club.name}</h3><p>{club.description}</p></div><b>Explore ↗</b>
+            </button>;
+          })}
         </div>
       </section>
     </main>

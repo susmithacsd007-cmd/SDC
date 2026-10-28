@@ -22,6 +22,8 @@ CampusConnect is a responsive React website backed by a Node.js + Express API. L
 
    Expected message: `CampusConnect API running at http://localhost:4000`
 
+   Keep the backend terminal running while using the site. If the registration form reports that it cannot connect, start both processes from the project folder with `npm run dev:full` and open the Vite URL printed in that terminal.
+
 4. Start the frontend in terminal 2:
 
    ```bash
@@ -54,14 +56,15 @@ The original JSON store remains available for local development when `DATABASE_U
 - Responsive homepage and event cards
 - Live search, category filters, and sorting
 - Event details, favourites, and countdown timer
-- Registration form with client-side and server-side validation
-- Read-only auto-generated roll number and college ID
+- Student ID entry page (demo-only; IDs are not checked against college records)
+- Registration form where students enter their full name, roll number, mobile, branch, year, and section
+- Client-side and server-side registration validation and duplicate rejection by roll number and event
 - Registration confirmation and My Events view backed by the API
 - Paid events are labelled demo/unpaid; no real payment is processed
 
 ## Important limitations to explain in the lab
 - Event cards are sample data currently stored in `src/App.jsx`.
-- The generated IDs (`SDC26-0001`, `CC26-0001`) are demo IDs, not official college IDs. Actual identity verification needs college records/authentication.
+- The student ID entry page is not authentication: anyone can type another student's ID. Do not treat it as identity verification or collect real student data in this classroom demo.
 - The JSON file is used only for local development. Deployed registrations and demo identities use PostgreSQL.
 - QR display or a static UPI QR is not proof of payment. Do not mark payments as successful without verification from a payment provider. This demo does not collect real payments.
 - Do not collect real student personal data with this classroom demo.

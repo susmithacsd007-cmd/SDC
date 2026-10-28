@@ -29,8 +29,13 @@ CREATE TABLE IF NOT EXISTS registrations (
   fee NUMERIC(10, 2) NOT NULL CHECK (fee >= 0),
   payment_status TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT registrations_one_per_event UNIQUE (device_id, event_id)
+  CONSTRAINT registrations_one_per_student_event UNIQUE (roll_number, event_id)
 );
 
 CREATE INDEX IF NOT EXISTS registrations_device_created_idx
   ON registrations (device_id, created_at DESC);
+
+-- Upgrade older installations whose duplicate rule used the browser device ID.
+ALTER TABLE registrations DROP CONSTRAINT IF EXISTS registrations_one_per_event;
+CREATE UNIQUE INDEX IF NOT EXISTS registrations_student_event_idx
+  ON registrations (upper(roll_number), event_id);

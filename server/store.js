@@ -71,20 +71,21 @@ export async function getIdentity(deviceId) {
   return existing.rows[0];
 }
 
-export async function listRegistrations(deviceId) {
+export async function listRegistrations(deviceId, rollNumber = '') {
   if (!pool) {
     const db = readDb();
     const identity = Object.hasOwn(db.students, deviceId) ? db.students[deviceId] : null;
-    return identity ? db.registrations.filter(item => item.rollNumber === identity.rollNumber) : [];
+    const records = db.registrations.filter(item => item.deviceId === deviceId || (identity && item.rollNumber === identity.rollNumber));
+    return rollNumber ? records.filter(item => item.rollNumber?.toUpperCase() === rollNumber.toUpperCase()) : records;
   }
 
   const result = await pool.query(
     `SELECT registration_id AS "registrationId", event_id AS "eventId", event_title AS "eventTitle",
-      event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className",
+      event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className", class_name AS section,
       year, branch, roll_number AS "rollNumber", college_id AS "collegeId", fee::float8 AS fee,
       payment_status AS "paymentStatus", created_at AS "createdAt"
-     FROM registrations WHERE device_id = $1 ORDER BY created_at DESC`,
-    [deviceId]
+     FROM registrations WHERE device_id = $1 AND ($2 = '' OR upper(roll_number) = upper($2)) ORDER BY created_at DESC`,
+    [deviceId, rollNumber]
   );
   return result.rows;
 }
@@ -92,19 +93,21 @@ export async function listRegistrations(deviceId) {
 export async function createRegistration(input) {
   const identity = await getIdentity(input.deviceId);
   const fee = input.fee ?? 0;
+  const rollNumber = input.rollNumber.trim().toUpperCase();
+  const section = (input.section ?? input.className).trim();
   const registration = {
-    registrationId: `REG-${randomUUID()}`,
+    registrationId: `REG-${randomUUID()}`, deviceId: input.deviceId,
     eventId: input.eventId.trim(), eventTitle: input.eventTitle.trim(), eventDate: input.eventDate,
     eventVenue: input.eventVenue.trim(), name: input.name.trim(), mobile: input.mobile.trim(),
-    className: input.className.trim(), year: input.year, branch: input.branch,
-    rollNumber: identity.rollNumber, collegeId: identity.collegeId, fee,
+    className: section, section, year: input.year, branch: input.branch,
+    rollNumber, collegeId: identity.collegeId, fee,
     paymentStatus: fee === 0 ? 'Not required' : 'Demo only — not paid',
     createdAt: new Date().toISOString()
   };
 
   if (!pool) {
     const db = readDb();
-    if (db.registrations.some(item => item.eventId === registration.eventId && item.rollNumber === identity.rollNumber)) {
+    if (db.registrations.some(item => item.eventId === registration.eventId && item.rollNumber?.toUpperCase() === rollNumber)) {
       const error = new Error('This student is already registered for this event.');
       error.code = 'DUPLICATE_REGISTRATION';
       throw error;
@@ -120,7 +123,7 @@ export async function createRegistration(input) {
        class_name, year, branch, roll_number, college_id, fee, payment_status, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING registration_id AS "registrationId", event_id AS "eventId", event_title AS "eventTitle",
-       event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className",
+       event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className", class_name AS section,
        year, branch, roll_number AS "rollNumber", college_id AS "collegeId", fee::float8 AS fee,
        payment_status AS "paymentStatus", created_at AS "createdAt"`,
     [registration.registrationId, input.deviceId, registration.eventId, registration.eventTitle,
