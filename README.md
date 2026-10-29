@@ -57,10 +57,10 @@ The original JSON store remains available for local development when `DATABASE_U
 - Live search, category filters, and sorting
 - Event details, favourites, and countdown timer
 - Student ID entry page (demo-only; IDs are not checked against college records)
-- Registration form where students enter their full name, roll number, mobile, branch, year, and section
+- Registration form where students enter their full name, roll number, mobile, branch, and year
 - Client-side and server-side registration validation and duplicate rejection by roll number and event
 - Registration confirmation and My Events view backed by the API
-- Paid events are labelled demo/unpaid; no real payment is processed
+- Paid events show a demo-only QR that is not payable; no real payment is processed
 
 ## Important limitations to explain in the lab
 - Event cards are sample data currently stored in `src/App.jsx`.

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import {
   CalendarDays, Search, Heart, MapPin, Clock3, ArrowRight, Sparkles,
   TicketCheck, X, CheckCircle2, Menu, Users, Compass, ChevronDown,
@@ -108,9 +109,17 @@ function Countdown({ target }) {
 function RegistrationModal({ event, onClose, onRegistered, registrations, studentId }) {
   const [deviceId] = useState(() => getDeviceId());
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", rollNumber: studentId, mobile: "", section: "", year: "2nd Year", branch: "CSE" });
+  const [form, setForm] = useState({ name: "", rollNumber: studentId, mobile: "", year: "2nd Year", branch: "CSE" });
   const [errors, setErrors] = useState({});
   const [done, setDone] = useState(null);
+  const [demoQr, setDemoQr] = useState("");
+
+  useEffect(() => {
+    if (!event || event.fee <= 0) return;
+    QRCode.toDataURL(`CampusConnect demo only | ${event.title} | ₹${event.fee} | NOT A PAYMENT`, { width: 180, margin: 1 })
+      .then(setDemoQr)
+      .catch(() => setDemoQr(""));
+  }, [event]);
 
   if (!event) return null;
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
@@ -120,7 +129,6 @@ function RegistrationModal({ event, onClose, onRegistered, registrations, studen
     if (form.name.trim().length < 2) nextErrors.name = "Please enter your full name.";
     if (!form.rollNumber.trim()) nextErrors.rollNumber = "Please enter your student roll number.";
     if (!/^[6-9]\d{9}$/.test(form.mobile.trim())) nextErrors.mobile = "Enter a valid 10-digit Indian mobile number.";
-    if (!form.section.trim()) nextErrors.section = "Please enter your section.";
     if (!form.year) nextErrors.year = "Choose your year.";
     if (!form.branch) nextErrors.branch = "Choose your branch.";
     const duplicate = registrations.some(r => r.eventId === event.id && r.rollNumber?.toUpperCase() === form.rollNumber.trim().toUpperCase());
@@ -134,7 +142,7 @@ function RegistrationModal({ event, onClose, onRegistered, registrations, studen
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId, eventId: event.id, eventTitle: event.title, eventDate: event.date,
           eventVenue: event.venue, name: form.name.trim(), rollNumber: form.rollNumber.trim().toUpperCase(),
-          mobile: form.mobile.trim(), section: form.section.trim(), year: form.year, branch: form.branch, fee: event.fee })
+          mobile: form.mobile.trim(), year: form.year, branch: form.branch, fee: event.fee })
       });
       const result = await readApiResponse(response);
       onRegistered(result);
@@ -161,10 +169,9 @@ function RegistrationModal({ event, onClose, onRegistered, registrations, studen
           <div><span>Event</span><strong>{done.eventTitle}</strong></div>
           <div><span>Registration ID</span><strong>{done.registrationId}</strong></div>
           <div><span>Roll number</span><strong>{done.rollNumber}</strong></div>
-          <div><span>Section</span><strong>{done.section || done.className}</strong></div>
           <div><span>Payment</span><strong>{done.paymentStatus}</strong></div>
         </div>
-        {event.fee > 0 && <p className="notice">This is a demo only. No payment was collected. Add a verified payment provider before accepting real fees.</p>}
+        {event.fee > 0 && <p className="notice">Demo only. The QR is not payable and no payment was collected.</p>}
         <button className="button button-primary button-full" onClick={onClose}>Done</button>
       </div> : <>
         <p className="eyebrow">EVENT REGISTRATION</p>
@@ -201,14 +208,10 @@ function RegistrationModal({ event, onClose, onRegistered, registrations, studen
               </select>
               {errors.year && <small className="error">{errors.year}</small>}
             </label>
-            <label className="field">Section <b>*</b>
-              <input value={form.section} onChange={e => update("section", e.target.value)} placeholder="e.g. A" maxLength={30} />
-              {errors.section && <small className="error">{errors.section}</small>}
-            </label>
           </div>
           {errors.form && <p className="error">{errors.form}</p>}
           <div className="payment-summary"><span>Registration fee</span><strong>{money(event.fee)}</strong></div>
-          {event.fee > 0 && <p className="notice">Demo mode: paid-event registration is recorded as unpaid. No QR payment is collected.</p>}
+          {event.fee > 0 && <div className="demo-qr-panel"><div><strong>Temporary demo QR</strong><span>This code is not connected to UPI or a payment account. No payment will be taken.</span></div>{demoQr ? <img src={demoQr} alt="Demo-only QR code; not a payment code" /> : <span role="status">Preparing demo QR…</span>}</div>}
           <button className="button button-primary button-full" type="submit" disabled={submitting}>{submitting ? "Saving registration…" : "Confirm registration"} <ArrowRight size={17}/></button>
           <p className="form-footnote">Fields marked * are required. Student IDs are entered by the user and are not verified against college records.</p>
         </form>

@@ -6,7 +6,7 @@ import pg from 'pg';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, 'data');
+const dataDir = process.env.CAMPUSCONNECT_DATA_DIR || path.join(__dirname, 'data');
 const dbPath = path.join(dataDir, 'db.json');
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -76,12 +76,13 @@ export async function listRegistrations(deviceId, rollNumber = '') {
     const db = readDb();
     const identity = Object.hasOwn(db.students, deviceId) ? db.students[deviceId] : null;
     const records = db.registrations.filter(item => item.deviceId === deviceId || (identity && item.rollNumber === identity.rollNumber));
-    return rollNumber ? records.filter(item => item.rollNumber?.toUpperCase() === rollNumber.toUpperCase()) : records;
+    const matchingRecords = rollNumber ? records.filter(item => item.rollNumber?.toUpperCase() === rollNumber.toUpperCase()) : records;
+    return matchingRecords.map(({ section, className, ...item }) => item);
   }
 
   const result = await pool.query(
     `SELECT registration_id AS "registrationId", event_id AS "eventId", event_title AS "eventTitle",
-      event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className", class_name AS section,
+      event_date AS "eventDate", event_venue AS "eventVenue", name, mobile,
       year, branch, roll_number AS "rollNumber", college_id AS "collegeId", fee::float8 AS fee,
       payment_status AS "paymentStatus", created_at AS "createdAt"
      FROM registrations WHERE device_id = $1 AND ($2 = '' OR upper(roll_number) = upper($2)) ORDER BY created_at DESC`,
@@ -94,12 +95,11 @@ export async function createRegistration(input) {
   const identity = await getIdentity(input.deviceId);
   const fee = input.fee ?? 0;
   const rollNumber = input.rollNumber.trim().toUpperCase();
-  const section = (input.section ?? input.className).trim();
   const registration = {
     registrationId: `REG-${randomUUID()}`, deviceId: input.deviceId,
     eventId: input.eventId.trim(), eventTitle: input.eventTitle.trim(), eventDate: input.eventDate,
     eventVenue: input.eventVenue.trim(), name: input.name.trim(), mobile: input.mobile.trim(),
-    className: section, section, year: input.year, branch: input.branch,
+    year: input.year, branch: input.branch,
     rollNumber, collegeId: identity.collegeId, fee,
     paymentStatus: fee === 0 ? 'Not required' : 'Demo only — not paid',
     createdAt: new Date().toISOString()
@@ -122,13 +122,13 @@ export async function createRegistration(input) {
       (registration_id, device_id, event_id, event_title, event_date, event_venue, name, mobile,
        class_name, year, branch, roll_number, college_id, fee, payment_status, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-     RETURNING registration_id AS "registrationId", event_id AS "eventId", event_title AS "eventTitle",
-       event_date AS "eventDate", event_venue AS "eventVenue", name, mobile, class_name AS "className", class_name AS section,
+       RETURNING registration_id AS "registrationId", event_id AS "eventId", event_title AS "eventTitle",
+       event_date AS "eventDate", event_venue AS "eventVenue", name, mobile,
        year, branch, roll_number AS "rollNumber", college_id AS "collegeId", fee::float8 AS fee,
        payment_status AS "paymentStatus", created_at AS "createdAt"`,
     [registration.registrationId, input.deviceId, registration.eventId, registration.eventTitle,
       registration.eventDate, registration.eventVenue, registration.name, registration.mobile,
-      registration.className, registration.year, registration.branch, registration.rollNumber,
+      '', registration.year, registration.branch, registration.rollNumber,
       registration.collegeId, registration.fee, registration.paymentStatus, registration.createdAt]
   );
   return result.rows[0];
