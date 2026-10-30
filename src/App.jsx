@@ -211,7 +211,7 @@ function RegistrationModal({ event, onClose, onRegistered, registrations, studen
           </div>
           {errors.form && <p className="error">{errors.form}</p>}
           <div className="payment-summary"><span>Registration fee</span><strong>{money(event.fee)}</strong></div>
-          {event.fee > 0 && <div className="demo-qr-panel"><div><strong>Temporary demo QR</strong><span>This code is not connected to UPI or a payment account. No payment will be taken.</span></div>{demoQr ? <img src={demoQr} alt="Demo-only QR code; not a payment code" /> : <span role="status">Preparing demo QR…</span>}</div>}
+          {event.fee > 0 && <div className="demo-qr-panel"><div><strong>Temporary demo QR</strong><span>Scan it</span></div>{demoQr ? <img src={demoQr} alt="Demo-only QR code; not a payment code" /> : <span role="status">Preparing demo QR…</span>}</div>}
           <button className="button button-primary button-full" type="submit" disabled={submitting}>{submitting ? "Saving registration…" : "Confirm registration"} <ArrowRight size={17}/></button>
           <p className="form-footnote">Fields marked * are required. Student IDs are entered by the user and are not verified against college records.</p>
         </form>
