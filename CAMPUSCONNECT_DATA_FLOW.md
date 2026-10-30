@@ -56,9 +56,9 @@ The request contains `deviceId`, `eventId`, `eventTitle`, `eventDate`, `eventVen
 
 The success view is set only after `fetch` returns an OK response and JSON is parsed. On a network error or non-success response, the catch block sets a visible error; `finally` clears the loading state. A paid-event registration remains `Demo only — not paid` on the server.
 
-### Important current form/login mismatch
+### Form ID and My Events
 
-The registration component expects a `studentId` prop for its initial `rollNumber`, but its parent invocation does not pass that prop. Thus the registration form starts without the login ID and requires the user to fill roll number separately. My Events later filters by the login ID. If a user enters different roll numbers in the login and form, the registration may not appear in that login's My Events view. This is a source inspection finding, not a browser test. It was not changed in this documentation task.
+The parent now passes the entered `studentId` to `RegistrationModal`, which prefills the roll-number field. My Events requests registrations for the browser's `deviceId` without an additional roll-number filter, and the UI matches saved registrations by event ID. This prevents an ID mismatch from hiding a successfully saved registration. The login ID is still user-entered and is not verified authentication.
 
 ## 6. Invalid form input
 
@@ -70,15 +70,15 @@ The client first checks its current `registrations` array for the same event and
 
 ## 8. My Events retrieval
 
-When `deviceId`, typed `studentId`, or the refresh counter changes, an effect makes:
+When `deviceId` or the refresh counter changes, an effect makes:
 
 ```text
-GET /api/registrations?deviceId=<encoded-device-id>&rollNumber=<encoded-student-id>
+GET /api/registrations?deviceId=<encoded-device-id>
 ```
 
-The browser expects an array. In My Events mode, `filteredEvents` includes only local sample events whose IDs and roll number match registration records. The code disables category filters in this view but search and some other list filtering state can still matter. Loading is shown while waiting; an error message and Retry button appear on failure.
+The browser expects an array. In My Events mode, `filteredEvents` includes local sample events whose IDs occur in the server response. The code disables category filters in this view, though search can still narrow the list. Loading is shown while waiting; an error message and Retry button appear on failure.
 
-On successful POST, `saveRegistration` prepends the returned response to the current registration state, so the event can appear without a full page reload if it matches the login ID. On page refresh, the effect fetches registrations again from the backend. Favourites and typed login ID are restored from localStorage; registrations are not considered successful merely because localStorage says so.
+On successful POST, `saveRegistration` prepends the returned response to the current registration state, so the event can appear without a full page reload. On page refresh, the effect fetches registrations again from the backend by browser device ID. Favourites and typed login ID are restored from localStorage; registrations are not considered successful merely because localStorage says so.
 
 ### Privacy caveat
 

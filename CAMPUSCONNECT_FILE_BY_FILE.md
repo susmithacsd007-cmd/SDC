@@ -70,7 +70,7 @@ setDone(result);
 
 The actual object includes those fields from the form and selected event. It does **not** include `section` or `className`. The success state is set after a successful HTTP response has been parsed. A failed request becomes a visible form-level message; `finally` clears the submitting state.
 
-**Current identity nuance:** `RegistrationModal` initializes `form.rollNumber` from its `studentId` prop, but the `<RegistrationModal ...>` call at the bottom of `App` does not pass `studentId`. Therefore its initial roll number is undefined in this checked-out source, and the student must enter the roll number in the form. The separate login value is used to filter My Events, so using different values can make a saved registration not appear for the logged-in ID. Verify/fix this in application code in a separate approved implementation task; this learning-document task intentionally does not change it.
+**Identity and My Events behavior:** `App` passes the typed login ID to `RegistrationModal`, so the roll-number field starts prefilled. My Events requests registrations using the browser's `deviceId` and filters the sample events by event ID; it does not hide a saved registration because the typed login ID differs from the roll number in the form. The login ID is still not verified authentication.
 
 ### `StudentLogin`
 

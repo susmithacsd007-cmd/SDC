@@ -102,7 +102,7 @@ Answers reflect the checked-out source (`github-repo-check`, branch `main`, comm
 
 ### 24. How does My Events work?
 **Short:** The page fetches registrations and filters the sample events to matching registration records.
-**More:** It uses the saved typed student ID/roll number; a mismatch between login ID and entered form roll can hide a registration.
+**More:** It loads registrations scoped to the browser's device ID and matches the registered event IDs. The typed login ID is not treated as verified identity.
 
 ### 25. What does the Retry button do?
 **Short:** It increments a refresh state value, which reruns the My Events effect.

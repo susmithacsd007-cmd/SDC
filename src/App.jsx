@@ -337,7 +337,7 @@ export default function App() {
     let active = true;
     setRegistrationsLoading(true);
     setRegistrationsError("");
-    fetch(`/api/registrations?deviceId=${encodeURIComponent(deviceId)}&rollNumber=${encodeURIComponent(studentId)}`)
+    fetch(`/api/registrations?deviceId=${encodeURIComponent(deviceId)}`)
       .then(readApiResponse)
       .then(data => {
         if (!Array.isArray(data)) throw new Error("The server returned an invalid registrations list.");
@@ -346,7 +346,7 @@ export default function App() {
       .catch(err => { if (active) setRegistrationsError(`Could not load your events: ${cleanErrorMessage(err)}`); })
       .finally(() => { if (active) setRegistrationsLoading(false); });
     return () => { active = false; };
-  }, [deviceId, registrationRefresh, studentId]);
+  }, [deviceId, registrationRefresh]);
 
   const filteredEvents = useMemo(() => {
     let list = EVENTS.filter(e => {
@@ -354,7 +354,7 @@ export default function App() {
       const query = search.trim().toLowerCase();
       const matchesSearch = !query || [e.title, e.category, e.venue, e.host, e.description].some(s => s.toLowerCase().includes(query));
       const matchesFavorite = !showFavoritesOnly || favorites.includes(e.id);
-      const matchesRegistered = view !== "my-events" || registrations.some(r => r.eventId === e.id && r.rollNumber?.toUpperCase() === studentId);
+      const matchesRegistered = view !== "my-events" || registrations.some(r => r.eventId === e.id);
       const club = clubs.find(item => item.name === activeClub);
       const matchesClub = !club || club.matches(e);
       return matchesCategory && matchesSearch && matchesFavorite && matchesRegistered && matchesClub;
@@ -363,7 +363,7 @@ export default function App() {
     if (sort === "latest") list.sort((a, b) => new Date(b.date) - new Date(a.date));
     if (sort === "fee-low") list.sort((a, b) => a.fee - b.fee);
     return list;
-  }, [activeCategory, search, sort, showFavoritesOnly, favorites, view, registrations, activeClub, studentId]);
+  }, [activeCategory, search, sort, showFavoritesOnly, favorites, view, registrations, activeClub]);
 
   const toggleFavorite = (id) => setFavorites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
   const saveRegistration = (registration) => setRegistrations(prev => [registration, ...prev.filter(r => r.registrationId !== registration.registrationId)]);
@@ -387,7 +387,7 @@ export default function App() {
   };
 
   if (!studentId) return <StudentLogin onLogin={login} />;
-  const studentRegistrations = registrations.filter(r => r.rollNumber?.toUpperCase() === studentId);
+  const studentRegistrations = registrations;
   return <div className="app-shell">
     <header className="site-header">
       <div className="header-inner">
@@ -470,6 +470,6 @@ export default function App() {
     <footer className="site-footer"><div className="footer-main"><div className="brand footer-brand"><span className="brand-mark"><CalendarDays size={21}/></span><span>Campus<span className="brand-accent">Connect</span><small>YOUR CAMPUS, YOUR COMMUNITY</small></span></div><p>Good things happen when you show up.<br/>Find your next campus experience.</p><button className="button button-light" onClick={goToEvents}>Explore events <ArrowRight size={16}/></button></div><div className="footer-bottom"><span>© 2026 CampusConnect · SDC Student Project</span><span>Built for campus life, with ♥</span></div></footer>
 
     <DetailsModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onRegister={openRegister} favorite={selectedEvent ? favorites.includes(selectedEvent.id) : false} onFavorite={toggleFavorite}/>
-    <RegistrationModal key={registerEvent?.id || "none"} event={registerEvent} onClose={() => setRegisterEvent(null)} onRegistered={saveRegistration} registrations={registrations}/>
+    <RegistrationModal key={registerEvent?.id || "none"} event={registerEvent} onClose={() => setRegisterEvent(null)} onRegistered={saveRegistration} registrations={registrations} studentId={studentId}/>
   </div>;
 }

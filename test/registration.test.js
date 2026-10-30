@@ -46,6 +46,12 @@ test('registration API no longer requires or returns Section/className and persi
   const frontend = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(frontend, /Section\s*<b>|form\.section/, 'registration form must not collect a Section');
   assert.doesNotMatch(frontend, /section:\s*form\./, 'frontend must not submit a section field');
+  assert.match(frontend, /fetch\(`\/api\/registrations\?deviceId=\$\{encodeURIComponent\(deviceId\)\}`\)/,
+    'My Events must load registrations for this browser without filtering by the login text');
+  assert.match(frontend, /registrations\.some\(r => r\.eventId === e\.id\)/,
+    'My Events must match the saved registration by event ID');
+  assert.match(frontend, /registrations=\{registrations\} studentId=\{studentId\}/,
+    'the registration form should be prefilled with the entered student ID');
 
   const registrationResponse = await fetch(`${baseUrl}/api/registrations`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
@@ -57,7 +63,7 @@ test('registration API no longer requires or returns Section/className and persi
   assert.equal(registration.rollNumber, 'TEST-12345');
   assert.equal(registration.paymentStatus, 'Demo only — not paid');
 
-  const myEventsUrl = `${baseUrl}/api/registrations?deviceId=${encodeURIComponent(deviceId)}&rollNumber=TEST-12345`;
+  const myEventsUrl = `${baseUrl}/api/registrations?deviceId=${encodeURIComponent(deviceId)}`;
   const myEvents = await (await fetch(myEventsUrl)).json();
   assert.equal(myEvents.length, 1);
   assert.equal('section' in myEvents[0], false);

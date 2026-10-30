@@ -122,4 +122,4 @@ Then remember four accurate limits: events are sample data in React; typed stude
 - Use fictional student details. Do not present the typed ID as verified identity.
 - Explain that a paid-event QR is non-payable and that the stored payment status remains unpaid/demo-only.
 - Do not claim PostgreSQL or Vercel passed unless you test the configured deployment.
-- If the login student ID and form roll number differ, My Events filtering can be inconsistent in the inspected source. Disclose this if asked; do not hide it.
+- The roll-number field starts with the ID entered at login; My Events loads the registrations saved for the current browser/device. Explain that the typed ID is not verified authentication.
